@@ -1,0 +1,70 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Location {
+  Bogota
+  Cartagena
+}
+
+enum EquipmentStatus {
+  available
+  assigned
+  in_repair
+  decommissioned
+}
+
+model Equipment {
+  id               String          @id @default(uuid()) @db.Uuid
+  serialNumber     String          @unique @map("serial_number")
+  type             String
+  brand            String
+  model            String
+  location         Location
+  status           EquipmentStatus @default(available)
+  decommissionedAt DateTime?       @map("decommissioned_at") @db.Timestamptz(3)
+  createdAt        DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+  assignments      Assignment[]
+
+  @@index([location, status])
+  @@map("equipments")
+}
+
+model Employee {
+  id          String       @id @default(uuid()) @db.Uuid
+  name        String
+  idDocument  String       @unique @map("id_document")
+  position    String
+  location    Location
+  email       String       @unique
+  createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+  assignments Assignment[]
+
+  @@map("employees")
+}
+
+// Permanent log: rows are never deleted, and the Restrict foreign keys prevent
+// removing an equipment or employee that has history. The migration also adds a
+// partial unique index allowing only one open assignment per equipment.
+model Assignment {
+  id              String    @id @default(uuid()) @db.Uuid
+  equipmentId     String    @map("equipment_id") @db.Uuid
+  employeeId      String    @map("employee_id") @db.Uuid
+  assignedAt      DateTime  @map("assigned_at") @db.Timestamptz(3)
+  returnedAt      DateTime? @map("returned_at") @db.Timestamptz(3)
+  assignmentNotes String?   @map("assignment_notes")
+  returnNotes     String?   @map("return_notes")
+  equipment       Equipment @relation(fields: [equipmentId], references: [id], onDelete: Restrict)
+  employee        Employee  @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+
+  @@index([equipmentId, assignedAt])
+  @@index([employeeId, returnedAt])
+  @@map("assignments")
+}
